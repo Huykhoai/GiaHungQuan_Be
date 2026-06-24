@@ -23,4 +23,5 @@ public class InvoiceItemDto {
     private String note;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long invoiceId;
 }

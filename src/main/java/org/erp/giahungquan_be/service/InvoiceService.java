@@ -18,11 +18,15 @@ import org.erp.giahungquan_be.repository.MenuItemRepository;
 import org.erp.giahungquan_be.request.CreateInvoiceRequest;
 import org.erp.giahungquan_be.request.OrderItemRequest;
 import org.erp.giahungquan_be.request.OrderItemsRequest;
+import org.erp.giahungquan_be.response.Message;
 import org.erp.giahungquan_be.util.BatchFetch;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +46,29 @@ public class InvoiceService {
     InvoiceMapper invoiceMapper;
     InvoiceItemMapper invoiceItemMapper;
 
-    public List<Invoice> getActiveInvoices() {
-        return invoiceRepository.findAllByStatusOrderByIdDesc("EATING");
+    public List<InvoiceDto> getActiveInvoices() {
+        LocalDateTime startDay = LocalDate.now().atStartOfDay();
+        List<Invoice> invoices = invoiceRepository.findAllByStatusAndCreatedAtGreaterThanEqualOrderByIdDesc("EATING",
+                startDay);
+        return invoiceMapper.toDtoList(invoices);
+    }
+
+    public List<InvoiceDto> getInvoiceHistory(LocalDate date, String tableName) {
+        LocalDateTime startDate = LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime endDate = LocalDateTime.of(2100, 1, 1, 0, 0);
+
+        if (date != null) {
+            startDate = date.atStartOfDay();
+            endDate = date.plusDays(1).atStartOfDay();
+        } else if (tableName == null || tableName.trim().isEmpty()) {
+            startDate = LocalDate.now().atStartOfDay();
+            endDate = LocalDate.now().plusDays(1).atStartOfDay();
+        }
+
+        String searchTable = (tableName == null) ? "" : tableName;
+
+        List<Invoice> invoices = invoiceRepository.findInvoicesWithFilters("PAID", startDate, endDate, searchTable);
+        return invoiceMapper.toDtoList(invoices);
     }
 
     @Transactional
@@ -80,6 +105,13 @@ public class InvoiceService {
         } else {
             items.addAll(invoiceItemRepository.findAllByInvoiceIdOrderByIdAsc(invoiceId));
         }
+        return invoiceItemMapper.toDtoList(items);
+    }
+
+    public List<InvoiceItemDto> getAllPendingItems() {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        List<InvoiceItem> items = invoiceItemRepository
+                .findAllByStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc("PENDING", startOfDay);
         return invoiceItemMapper.toDtoList(items);
     }
 
@@ -157,6 +189,10 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hóa đơn"));
 
+        if (invoice.getStatus().equals("PAID")) {
+            throw new IllegalArgumentException("Hóa đơn đã được thanh toán");
+        }
+
         List<InvoiceItem> pendingItems = invoiceItemRepository.findAllByInvoiceIdAndStatusOrderByIdAsc(invoiceId,
                 "PENDING");
         if (!pendingItems.isEmpty()) {
@@ -190,4 +226,23 @@ public class InvoiceService {
         messagingTemplate.convertAndSend("/topic/invoice/" + invoiceId, "UPDATED");
     }
 
+    @Transactional
+    public Message deleteEmptyInvoice(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hóa đơn"));
+
+        boolean existsItems = invoiceItemRepository.existsInvoiceItemByInvoice_Id(invoiceId);
+
+        if (existsItems) {
+            return new Message(HttpStatus.BAD_REQUEST.value(), "Hóa đơn đã lên món, không thể xóa");
+        }
+        DiningTable table = tableRepository.findById(invoice.getTable().getId()).orElse(null);
+        if (table != null) {
+            table.setStatus("EMPTY");
+            tableRepository.save(table);
+        }
+
+        invoiceRepository.delete(invoice);
+        return new Message(HttpStatus.OK.value(), "Hóa đơn đã được xóa");
+    }
 }

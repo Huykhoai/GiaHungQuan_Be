@@ -11,9 +11,12 @@ import java.util.List;
 public interface InvoiceItemRepository extends JpaRepository<InvoiceItem, Long> {
     List<InvoiceItem> findAllByInvoiceIdOrderByIdAsc(Long invoiceId);
 
-    @EntityGraph(attributePaths = {"invoice", "menuItem"})
+    @EntityGraph(attributePaths = { "invoice", "menuItem" })
     List<InvoiceItem> findAllByInvoiceIdAndStatusOrderByIdAsc(Long invoiceId, String status);
 
-    @EntityGraph(attributePaths = {"invoice", "menuItem"})
-    List<InvoiceItem> findAllByStatusOrderByCreatedAtAsc(String status);
+    @EntityGraph(attributePaths = { "invoice", "menuItem" })
+    List<InvoiceItem> findAllByStatusAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(String status,
+            java.time.LocalDateTime startOfDay);
+
+    boolean existsInvoiceItemByInvoice_Id(Long invoiceId);
 }

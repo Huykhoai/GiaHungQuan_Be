@@ -8,6 +8,8 @@ import org.erp.giahungquan_be.request.OrderItemsRequest;
 import org.erp.giahungquan_be.service.InvoiceService;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+
 @RestController
 @RequestMapping("/api/invoices")
 @RequiredArgsConstructor
@@ -18,6 +20,13 @@ public class InvoiceController {
     @GetMapping("/active")
     public ApiResponse<?> getActiveInvoices() {
         return ApiResponse.success(service.getActiveInvoices());
+    }
+
+    @GetMapping("/history")
+    public ApiResponse<?> getInvoiceHistory(
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(required = false) String tableName) {
+        return ApiResponse.success(service.getInvoiceHistory(date, tableName));
     }
 
     @PostMapping
@@ -33,6 +42,11 @@ public class InvoiceController {
     @GetMapping("/{id}/items")
     public ApiResponse<?> getInvoiceItems(@PathVariable Long id, @RequestParam(required = false) String status) {
         return ApiResponse.success(service.getInvoiceItems(id, status));
+    }
+
+    @GetMapping("/items/pending")
+    public ApiResponse<?> getAllPendingItems() {
+        return ApiResponse.success(service.getAllPendingItems());
     }
 
     @PostMapping("/{id}/order")
@@ -56,5 +70,10 @@ public class InvoiceController {
     public ApiResponse<?> cancelPendingItem(@PathVariable Long itemId) {
         service.cancelPendingItem(itemId);
         return ApiResponse.success("Hủy món thành công", null);
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<?> deleteEmptyInvoice(@PathVariable Long id) {
+        return ApiResponse.success("Đã xóa hóa đơn trống và giải phóng bàn",service.deleteEmptyInvoice(id));
     }
 }
